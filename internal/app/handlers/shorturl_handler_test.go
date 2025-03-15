@@ -28,7 +28,6 @@ func (mock *MockRepository) Save(hash, original string) error {
 }
 
 func TestGetShortURL(t *testing.T) {
-
 	type want struct {
 		statusCode  int
 		contentType string
