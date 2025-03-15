@@ -42,11 +42,6 @@ func (h *ShortURLHandler) createShortURL(w http.ResponseWriter, r *http.Request)
 
 	hash := "EwHXdJfB"
 
-	if _, err := h.repo.Get(hash); err == nil {
-		http.Error(w, "short url already exists, try again later", http.StatusConflict)
-		return
-	}
-
 	if err := h.repo.Save(hash, string(body)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -65,7 +60,7 @@ func (h *ShortURLHandler) getShortURL(w http.ResponseWriter, r *http.Request) {
 
 	original, err := h.repo.Get(hash)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("short url does not exist for %s", hash), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("short url does not exist for %s", hash), http.StatusNotFound)
 		return
 	}
 
