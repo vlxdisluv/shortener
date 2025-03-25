@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"errors"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -75,6 +77,11 @@ func TestGetShortURL(t *testing.T) {
 				Once()
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.hash, nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("hash", tt.hash)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
 			w := httptest.NewRecorder()
 
 			handler.getShortURL(w, req)

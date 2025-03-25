@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
 	"io"
 	"net/http"
@@ -56,7 +57,7 @@ func (h *ShortURLHandler) createShortURL(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ShortURLHandler) getShortURL(w http.ResponseWriter, r *http.Request) {
-	hash := r.URL.Path[1:]
+	hash := chi.URLParam(r, "hash")
 
 	original, err := h.repo.Get(hash)
 	if err != nil {
