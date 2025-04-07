@@ -1,32 +1,37 @@
-# go-musthave-shortener-tpl
+# Go Shortener
 
-Шаблон репозитория для трека «Сервис сокращения URL».
+## Overview
+Go Shortener is a simple URL shortening service built with Go. It allows you to shorten long URLs, redirect users to the original URLs, and optionally collect click statistics. This project is intended for both learning purposes and practical use.
 
-## Начало работы
+## Features
+- **URL Shortening:** Generate short links from long URLs.
+- **Redirection:** Automatically redirect from a short URL to the original long URL.
+- **REST API:** Easily integrate with other services via a well-defined API.
 
-1. Склонируйте репозиторий в любую подходящую директорию на вашем компьютере.
-2. В корне репозитория выполните команду `go mod init <name>` (где `<name>` — адрес вашего репозитория на GitHub без префикса `https://`) для создания модуля.
+## Technologies
+- **Language:** Go
 
-## Обновление шаблона
+## Installation and Setup
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/vlxdisluv/shortener.git
+   ```
+2. **Navigate to the Project Directory:**
+   ```bash
+   cd shortener
+   ```
+3. **Install Dependencies:**
+   ```bash
+   go mod tidy
+   ```
+4. **Run the Application:**
+   ```bash
+   go run cmd/shortener/main.go
+   ```
+   The application will start on the default port (e.g., `8080`). Adjust the configuration as needed.
 
-Чтобы иметь возможность получать обновления автотестов и других частей шаблона, выполните команду:
-
+## Testing
+To run the automated tests, use:
+```bash
+go test ./...
 ```
-git remote add -m main template https://github.com/Yandex-Practicum/go-musthave-shortener-tpl.git
-```
-
-Для обновления кода автотестов выполните команду:
-
-```
-git fetch template && git checkout template/main .github
-```
-
-Затем добавьте полученные изменения в свой репозиторий.
-
-## Запуск автотестов
-
-Для успешного запуска автотестов называйте ветки `iter<number>`, где `<number>` — порядковый номер инкремента. Например, в ветке с названием `iter4` запустятся автотесты для инкрементов с первого по четвёртый.
-
-При мёрже ветки с инкрементом в основную ветку `main` будут запускаться все автотесты.
-
-Подробнее про локальный и автоматический запуск читайте в [README автотестов](https://github.com/Yandex-Practicum/go-autotests).
