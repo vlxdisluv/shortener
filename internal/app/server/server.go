@@ -2,27 +2,37 @@ package server
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/vlxdisluv/shortener/config"
 	"github.com/vlxdisluv/shortener/internal/app/handlers"
+	"github.com/vlxdisluv/shortener/internal/app/logger"
+	customMiddleware "github.com/vlxdisluv/shortener/internal/app/middleware"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
-	"log"
+	"go.uber.org/zap"
 	"net/http"
 )
 
-func Start(addr string) {
+func Start(cfg *config.Config) {
 	repo := storage.NewInMemoryURLStore()
 	shortURLHandler := handlers.NewShortURLHandler(repo)
 
 	r := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r.Use(chiMiddleware.RequestID)
+	r.Use(chiMiddleware.Recoverer)
+	r.Use(customMiddleware.RequestLogger)
 
 	r.Post("/", shortURLHandler)
 	r.Get("/{hash}", shortURLHandler)
 
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("server failed to start: %v", err)
+	logger.Log.Info("Server started successfully",
+		zap.String("address", cfg.Addr),
+		zap.String("baseURL", cfg.BaseURL),
+		zap.String("logLevel", cfg.LogLevel),
+	)
+
+	if err := http.ListenAndServe(cfg.Addr, r); err != nil {
+		logger.Log.Fatal("server failed to start", zap.Error(err))
+		//log.Fatalf("server failed to start: %v", err)
 	}
 }
