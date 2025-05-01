@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
-	"io"
 	"net/http"
 )
 
@@ -12,38 +12,39 @@ type ShortURLHandler struct {
 	repo storage.URLRepository
 }
 
-func NewShortURLHandler(repo storage.URLRepository) http.HandlerFunc {
-	h := &ShortURLHandler{repo: repo}
-	return h.handle
+func NewShortURLHandler(repo storage.URLRepository) *ShortURLHandler {
+	return &ShortURLHandler{repo: repo}
 }
 
-func (h *ShortURLHandler) handle(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		h.getShortURL(w, r)
-	case http.MethodPost:
-		h.createShortURL(w, r)
-	default:
-		w.Header().Set("Allow", "GET, POST")
-		http.Error(w, fmt.Sprintf("Method %s not allowed", r.Method), http.StatusMethodNotAllowed)
-	}
+type CreateShortURLReq struct {
+	URL string `json:"url"`
 }
 
-func (h *ShortURLHandler) createShortURL(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	defer r.Body.Close()
-	if err != nil {
+type CreateShortURLResp struct {
+	ShortURL string `json:"result"`
+}
+
+func (h *ShortURLHandler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
+	var shortURLReq CreateShortURLReq
+
+	//buf, _ := io.ReadAll(r.Body)
+	//fmt.Println("RAW BODY", string(buf))
+	//r.Body = io.NopCloser(strings.NewReader(string(buf)))
+
+	if err := json.NewDecoder(r.Body).Decode(&shortURLReq); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if len(body) == 0 {
-		http.Error(w, "Empty body", http.StatusBadRequest)
+	defer r.Body.Close()
+
+	if shortURLReq.URL == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
 		return
 	}
 
 	hash := "EwHXdJfB"
 
-	if err := h.repo.Save(hash, string(body)); err != nil {
+	if err := h.repo.Save(hash, shortURLReq.URL); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -51,12 +52,12 @@ func (h *ShortURLHandler) createShortURL(w http.ResponseWriter, r *http.Request)
 	host := r.Host
 	shortURL := fmt.Sprintf("http://%s/%s", host, hash)
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortURL))
+	json.NewEncoder(w).Encode(CreateShortURLResp{ShortURL: shortURL})
 }
 
-func (h *ShortURLHandler) getShortURL(w http.ResponseWriter, r *http.Request) {
+func (h *ShortURLHandler) GetShortURL(w http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 
 	original, err := h.repo.Get(hash)

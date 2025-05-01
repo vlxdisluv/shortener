@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -84,7 +85,7 @@ func TestGetShortURL(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			handler.getShortURL(w, req)
+			handler.GetShortURL(w, req)
 			result := w.Result()
 			defer result.Body.Close()
 
@@ -111,12 +112,12 @@ func TestCreateShortURL(t *testing.T) {
 	}{
 		{
 			name:        "create short url success #1",
-			requestBody: "http://google.com",
+			requestBody: `{"url":"http://google.com"}`,
 			mockSaveErr: nil,
 			want: want{
 				statusCode:  http.StatusCreated,
-				contentType: "text/plain",
-				respBody:    "http://example.com/EwHXdJfB",
+				contentType: "application/json",
+				respBody:    `{"result":"http://example.com/EwHXdJfB"}`,
 			},
 		},
 		{
@@ -131,7 +132,7 @@ func TestCreateShortURL(t *testing.T) {
 		},
 		{
 			name:        "hash already exists err #3",
-			requestBody: "http://google.com",
+			requestBody: `{"url":"http://google.com"}`,
 			mockSaveErr: errors.New("not found"),
 			want: want{
 				statusCode:  http.StatusInternalServerError,
@@ -148,16 +149,22 @@ func TestCreateShortURL(t *testing.T) {
 				repo: mockRepo,
 			}
 
+			var parsedBody struct {
+				URL string `json:"url"`
+			}
+			_ = json.Unmarshal([]byte(tt.requestBody), &parsedBody)
+
 			mockRepo.
-				On("Save", "EwHXdJfB", tt.requestBody).
+				On("Save", "EwHXdJfB", parsedBody.URL).
 				Return(tt.mockSaveErr).
 				Maybe()
 
 			body := strings.NewReader(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPost, "/", body)
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", body)
+			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
-			handler.createShortURL(w, req)
+			handler.CreateShortURL(w, req)
 
 			result := w.Result()
 
@@ -170,7 +177,7 @@ func TestCreateShortURL(t *testing.T) {
 			require.NoError(t, err)
 
 			if result.StatusCode == http.StatusCreated {
-				assert.Equal(t, tt.want.respBody, string(shortURLResult))
+				assert.JSONEq(t, tt.want.respBody, string(shortURLResult))
 			}
 		})
 	}
