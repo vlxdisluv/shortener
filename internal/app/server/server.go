@@ -14,7 +14,7 @@ import (
 
 func Start(cfg *config.Config) {
 	repo := storage.NewInMemoryURLStore()
-	shortURLHandler := handlers.NewShortURLHandler(repo)
+	h := handlers.NewShortURLHandler(repo)
 
 	r := chi.NewRouter()
 
@@ -22,8 +22,9 @@ func Start(cfg *config.Config) {
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(customMiddleware.RequestLogger)
 
-	r.Post("/", shortURLHandler)
-	r.Get("/{hash}", shortURLHandler)
+	r.Post("/", h.CreateShortURLFromRawBody)
+	r.Get("/{hash}", h.GetShortURL)
+	r.Post("/api/shorten", h.CreateShortURLFromJSON)
 
 	logger.Log.Info("Server started successfully",
 		zap.String("address", cfg.Addr),
