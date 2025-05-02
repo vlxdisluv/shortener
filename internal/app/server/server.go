@@ -22,8 +22,9 @@ func Start(cfg *config.Config) {
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(customMiddleware.RequestLogger)
 
-	r.Post("/api/shorten", h.CreateShortURL)
+	r.Post("/", h.CreateShortURLFromRawBody)
 	r.Get("/{hash}", h.GetShortURL)
+	r.Post("/api/shorten", h.CreateShortURLFromJSON)
 
 	logger.Log.Info("Server started successfully",
 		zap.String("address", cfg.Addr),

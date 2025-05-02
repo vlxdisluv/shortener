@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
+	"io"
 	"net/http"
 )
 
@@ -24,12 +25,37 @@ type CreateShortURLResp struct {
 	ShortURL string `json:"result"`
 }
 
-func (h *ShortURLHandler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
-	var shortURLReq CreateShortURLReq
+func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
 
-	//buf, _ := io.ReadAll(r.Body)
-	//fmt.Println("RAW BODY", string(buf))
-	//r.Body = io.NopCloser(strings.NewReader(string(buf)))
+	if len(body) == 0 {
+		http.Error(w, "Empty body", http.StatusBadRequest)
+		return
+	}
+
+	hash := "EwHXdJfB"
+
+	if err := h.repo.Save(hash, string(body)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	host := r.Host
+	shortURL := fmt.Sprintf("http://%s/%s", host, hash)
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(shortURL))
+}
+
+func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.Request) {
+	var shortURLReq CreateShortURLReq
 
 	if err := json.NewDecoder(r.Body).Decode(&shortURLReq); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

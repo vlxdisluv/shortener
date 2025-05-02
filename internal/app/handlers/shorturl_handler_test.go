@@ -97,7 +97,84 @@ func TestGetShortURL(t *testing.T) {
 	}
 }
 
-func TestCreateShortURL(t *testing.T) {
+func TestCreateShortURLFromRawBody(t *testing.T) {
+	type want struct {
+		statusCode  int
+		contentType string
+		respBody    string
+	}
+	tests := []struct {
+		name        string
+		requestBody string
+		mockSaveErr error
+		want
+	}{
+		{
+			name:        "create short url success #1",
+			requestBody: "http://google.com",
+			mockSaveErr: nil,
+			want: want{
+				statusCode:  http.StatusCreated,
+				contentType: "text/plain",
+				respBody:    "http://example.com/EwHXdJfB",
+			},
+		},
+		{
+			name:        "empty body error #2",
+			requestBody: "",
+			mockSaveErr: nil,
+			want: want{
+				statusCode:  http.StatusBadRequest,
+				contentType: "text/plain; charset=utf-8",
+				respBody:    "",
+			},
+		},
+		{
+			name:        "hash already exists err #3",
+			requestBody: "http://google.com",
+			mockSaveErr: errors.New("not found"),
+			want: want{
+				statusCode:  http.StatusInternalServerError,
+				contentType: "text/plain; charset=utf-8",
+				respBody:    "",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &MockRepository{}
+			handler := &ShortURLHandler{
+				repo: mockRepo,
+			}
+
+			mockRepo.
+				On("Save", "EwHXdJfB", tt.requestBody).
+				Return(tt.mockSaveErr).
+				Maybe()
+
+			body := strings.NewReader(tt.requestBody)
+			req := httptest.NewRequest(http.MethodPost, "/", body)
+			w := httptest.NewRecorder()
+
+			handler.CreateShortURLFromRawBody(w, req)
+
+			result := w.Result()
+
+			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
+			shortURLResult, err := io.ReadAll(result.Body)
+			require.NoError(t, err)
+			err = result.Body.Close()
+			require.NoError(t, err)
+
+			if result.StatusCode == http.StatusCreated {
+				assert.Equal(t, tt.want.respBody, string(shortURLResult))
+			}
+		})
+	}
+}
+
+func TestCreateShortURLFromJSON(t *testing.T) {
 	type want struct {
 		statusCode  int
 		contentType string
@@ -164,7 +241,7 @@ func TestCreateShortURL(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
-			handler.CreateShortURL(w, req)
+			handler.CreateShortURLFromJSON(w, req)
 
 			result := w.Result()
 
