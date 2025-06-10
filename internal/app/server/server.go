@@ -21,6 +21,7 @@ func Start(cfg *config.Config) {
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(customMiddleware.RequestLogger)
+	r.Use(customMiddleware.GzipCompressor)
 
 	r.Post("/", h.CreateShortURLFromRawBody)
 	r.Get("/{hash}", h.GetShortURL)
