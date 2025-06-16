@@ -20,9 +20,9 @@ func (s *InMemoryURLStore) Save(hash, original string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.hashMap[hash]; exists {
-		return fmt.Errorf("hash already exists")
-	}
+	//if _, exists := s.hashMap[hash]; exists {
+	//	return fmt.Errorf("hash already exists")
+	//}
 
 	s.hashMap[hash] = original
 	return nil
