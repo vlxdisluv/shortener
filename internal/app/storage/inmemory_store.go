@@ -3,17 +3,23 @@ package storage
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 type InMemoryURLStore struct {
 	mu      sync.RWMutex
 	hashMap map[string]string
+	seq     int64
 }
 
 func NewInMemoryURLStore() *InMemoryURLStore {
 	return &InMemoryURLStore{
 		hashMap: make(map[string]string),
 	}
+}
+
+func (s *InMemoryURLStore) NextID() int64 {
+	return atomic.AddInt64(&s.seq, 1)
 }
 
 func (s *InMemoryURLStore) Save(hash, original string) error {
@@ -25,6 +31,7 @@ func (s *InMemoryURLStore) Save(hash, original string) error {
 	//}
 
 	s.hashMap[hash] = original
+
 	return nil
 }
 
