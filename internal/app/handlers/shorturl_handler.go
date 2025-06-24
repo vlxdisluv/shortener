@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
+	"github.com/vlxdisluv/shortener/internal/app/shortener"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
 	"io"
 	"net/http"
@@ -32,14 +33,14 @@ func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *ht
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	if len(body) == 0 {
 		http.Error(w, "Empty body", http.StatusBadRequest)
 		return
 	}
 
-	hash := "EwHXdJfB"
+	id := h.repo.NextID()
+	hash := shortener.Generate(id, 7)
 
 	if err := h.repo.Save(hash, string(body)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -68,7 +69,8 @@ func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.
 		return
 	}
 
-	hash := "EwHXdJfB"
+	id := h.repo.NextID()
+	hash := shortener.Generate(id, 7)
 
 	if err := h.repo.Save(hash, shortURLReq.URL); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

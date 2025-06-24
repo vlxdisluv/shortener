@@ -30,6 +30,11 @@ func (mock *MockRepository) Save(hash, original string) error {
 	return args.Error(0)
 }
 
+func (mock *MockRepository) NextID() int64 {
+	args := mock.Called()
+	return args.Get(0).(int64)
+}
+
 func TestGetShortURL(t *testing.T) {
 	type want struct {
 		statusCode  int
@@ -116,7 +121,7 @@ func TestCreateShortURLFromRawBody(t *testing.T) {
 			want: want{
 				statusCode:  http.StatusCreated,
 				contentType: "text/plain",
-				respBody:    "http://example.com/EwHXdJfB",
+				respBody:    "http://example.com/1111113",
 			},
 		},
 		{
@@ -147,8 +152,9 @@ func TestCreateShortURLFromRawBody(t *testing.T) {
 				repo: mockRepo,
 			}
 
+			mockRepo.On("NextID").Return(int64(2))
 			mockRepo.
-				On("Save", "EwHXdJfB", tt.requestBody).
+				On("Save", mock.AnythingOfType("string"), tt.requestBody).
 				Return(tt.mockSaveErr).
 				Maybe()
 
@@ -194,7 +200,7 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 			want: want{
 				statusCode:  http.StatusCreated,
 				contentType: "application/json",
-				respBody:    `{"result":"http://example.com/EwHXdJfB"}`,
+				respBody:    `{"result":"http://example.com/1111114"}`,
 			},
 		},
 		{
@@ -231,8 +237,9 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 			}
 			_ = json.Unmarshal([]byte(tt.requestBody), &parsedBody)
 
+			mockRepo.On("NextID").Return(int64(3))
 			mockRepo.
-				On("Save", "EwHXdJfB", parsedBody.URL).
+				On("Save", mock.AnythingOfType("string"), parsedBody.URL).
 				Return(tt.mockSaveErr).
 				Maybe()
 
