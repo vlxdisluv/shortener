@@ -13,7 +13,10 @@ import (
 )
 
 func Start(cfg *config.Config) {
-	repo := storage.NewInMemoryURLStore()
+	repo, err := storage.NewInMemoryURLStore(cfg.FileStoragePath)
+	if err != nil {
+		logger.Log.Fatal("server failed to init storage", zap.Error(err))
+	}
 	h := handlers.NewShortURLHandler(repo)
 
 	r := chi.NewRouter()

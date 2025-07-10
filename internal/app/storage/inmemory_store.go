@@ -1,21 +1,65 @@
 package storage
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/vlxdisluv/shortener/internal/app/logger"
+	"go.uber.org/zap"
+	"io"
 	"sync"
 	"sync/atomic"
 )
 
 type InMemoryURLStore struct {
-	mu      sync.RWMutex
-	hashMap map[string]string
-	seq     int64
+	mu        sync.RWMutex
+	hashMap   map[string]string
+	seq       int64
+	fileStore *FileStore
 }
 
-func NewInMemoryURLStore() *InMemoryURLStore {
-	return &InMemoryURLStore{
-		hashMap: make(map[string]string),
+type entry struct {
+	Hash string `json:"hash"`
+	URL  string `json:"url"`
+}
+
+func NewInMemoryURLStore(path string) (*InMemoryURLStore, error) {
+	fileStore, err := LoadFile(path)
+	if err != nil {
+		return nil, err
 	}
+
+	memStore := &InMemoryURLStore{
+		hashMap:   make(map[string]string),
+		fileStore: fileStore,
+	}
+
+	for {
+		raw, err := fileStore.ReadRaw()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		var e entry
+		if err := json.Unmarshal(raw, &e); err != nil {
+			logger.Log.Warn("skipping invalid entry: %v", zap.Error(err))
+			continue
+		}
+
+		if e.URL == "" || e.Hash == "" {
+			logger.Log.Warn("skipping incomplete entry: %q", zap.Binary("fileRaw", raw))
+			continue
+		}
+
+		memStore.hashMap[e.Hash] = e.URL
+	}
+
+	memStore.seq = int64(len(memStore.hashMap))
+	return memStore, nil
 }
 
 func (s *InMemoryURLStore) NextID() int64 {
@@ -31,6 +75,10 @@ func (s *InMemoryURLStore) Save(hash, original string) error {
 	//}
 
 	s.hashMap[hash] = original
+
+	if err := s.fileStore.Append(entry{Hash: hash, URL: original}); err != nil {
+		return err
+	}
 
 	return nil
 }
