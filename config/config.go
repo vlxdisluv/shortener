@@ -11,6 +11,7 @@ type Config struct {
 	BaseURL         string
 	LogLevel        string
 	FileStoragePath string
+	DatabaseDSN     string
 }
 
 var (
@@ -19,6 +20,7 @@ var (
 	baseURL         string
 	logLevel        string
 	fileStoragePath string
+	databaseDSN     string
 )
 
 func init() {
@@ -27,6 +29,7 @@ func init() {
 	flag.StringVar(&logLevel, "l", "info", "Log Level")
 	flag.StringVar(&environment, "e", "development", "Environment")
 	flag.StringVar(&fileStoragePath, "f", "/tmp/short-url-db.json", "Path to JSON file that stores short and original URLs")
+	flag.StringVar(&databaseDSN, "d", "postgres://shortener:shortener@localhost:5432/postgres", "Database DSN")
 }
 
 func Load() *Config {
@@ -56,11 +59,16 @@ func Load() *Config {
 		fileStoragePath = envFileStoragePath
 	}
 
+	if envDatabaseDSN := os.Getenv("DATABASE_DSN"); envDatabaseDSN != "" {
+		databaseDSN = envDatabaseDSN
+	}
+
 	return &Config{
 		Environment:     environment,
 		Addr:            addr,
 		BaseURL:         baseURL,
 		LogLevel:        logLevel,
 		FileStoragePath: fileStoragePath,
+		DatabaseDSN:     databaseDSN,
 	}
 }
