@@ -16,14 +16,17 @@ func Initialize(cfg *config.Config) error {
 		return err
 	}
 
-	zapCfg := zap.NewDevelopmentConfig()
+	var zapCfg zap.Config
 	if cfg.Environment == "production" {
 		zapCfg = zap.NewProductionConfig()
 	} else {
 		zapCfg = zap.NewDevelopmentConfig()
 	}
 
+	// Set desired levels and outputs: info/debug to stdout, errors to stderr
 	zapCfg.Level = lvl
+	zapCfg.OutputPaths = []string{"stdout"}
+	zapCfg.ErrorOutputPaths = []string{"stderr"}
 
 	zl, err := zapCfg.Build()
 	if err != nil {
