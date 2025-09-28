@@ -3,7 +3,7 @@ package shortener
 const (
 	// alphabet58 is the base58 alphabet without ambiguous characters
 	alphabet58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-	base58     = int64(len(alphabet58))
+	base58     = uint64(len(alphabet58))
 )
 
 func padLeft(s string, length int, padChar byte) string {
@@ -18,7 +18,7 @@ func padLeft(s string, length int, padChar byte) string {
 	return string(padding) + s
 }
 
-func Generate(num int64, length int) string {
+func Generate(num uint64, length int) string {
 	if num == 0 {
 		return padLeft(string(alphabet58[0]), length, alphabet58[0])
 	}

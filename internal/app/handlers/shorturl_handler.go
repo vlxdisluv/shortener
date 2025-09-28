@@ -3,19 +3,21 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/vlxdisluv/shortener/internal/app/shortener"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
-	"io"
-	"net/http"
 )
 
 type ShortURLHandler struct {
-	repo storage.URLRepository
+	repo    storage.ShortURLRepository
+	counter storage.CounterRepository
 }
 
-func NewShortURLHandler(repo storage.URLRepository) *ShortURLHandler {
-	return &ShortURLHandler{repo: repo}
+func NewShortURLHandler(repo storage.ShortURLRepository, counter storage.CounterRepository) *ShortURLHandler {
+	return &ShortURLHandler{repo: repo, counter: counter}
 }
 
 type CreateShortURLReq struct {
@@ -39,7 +41,11 @@ func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *ht
 		return
 	}
 
-	id := h.repo.NextID()
+	id, err := h.counter.Next()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	hash := shortener.Generate(id, 7)
 
 	if err := h.repo.Save(hash, string(body)); err != nil {
@@ -52,7 +58,7 @@ func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *ht
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortURL))
+	_, _ = w.Write([]byte(shortURL))
 }
 
 func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +75,11 @@ func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.
 		return
 	}
 
-	id := h.repo.NextID()
+	id, err := h.counter.Next()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	hash := shortener.Generate(id, 7)
 
 	if err := h.repo.Save(hash, shortURLReq.URL); err != nil {
@@ -82,7 +92,7 @@ func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(CreateShortURLResp{ShortURL: shortURL})
+	_ = json.NewEncoder(w).Encode(CreateShortURLResp{ShortURL: shortURL})
 }
 
 func (h *ShortURLHandler) GetShortURL(w http.ResponseWriter, r *http.Request) {
