@@ -29,7 +29,7 @@ func init() {
 	flag.StringVar(&logLevel, "l", "info", "Log Level")
 	flag.StringVar(&environment, "e", "development", "Environment")
 	flag.StringVar(&fileStoragePath, "f", "/tmp/short-url-db.json", "Path to JSON file that stores short and original URLs")
-	flag.StringVar(&databaseDSN, "d", "postgres://shortener:shortener@localhost:5432/postgres", "Database DSN")
+	flag.StringVar(&databaseDSN, "d", "", "Database DSN")
 }
 
 func Load() *Config {
