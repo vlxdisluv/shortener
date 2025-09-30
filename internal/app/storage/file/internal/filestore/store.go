@@ -36,25 +36,6 @@ func LoadFile(fileStoragePath string) (*Store, error) {
 	}, nil
 }
 
-//func (f *Store) Read() (map[string]string, error) {
-//	if !f.scanner.Scan() {
-//		if err := f.scanner.Err(); err != nil {
-//			return nil, err
-//		}
-//
-//		return nil, io.EOF
-//	}
-//
-//	data := f.scanner.Bytes()
-//
-//	var deserialized map[string]string
-//	if err := json.Unmarshal(data, &deserialized); err != nil {
-//		return nil, err
-//	}
-//
-//	return deserialized, nil
-//}
-
 func (f *Store) ReadRaw() ([]byte, error) {
 	if !f.scanner.Scan() {
 		if err := f.scanner.Err(); err != nil {

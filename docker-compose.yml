@@ -11,8 +11,28 @@ services:
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
     volumes:
       - pg_data:/var/lib/postgresql/data
+
+  migrate:
+    image: migrate/migrate:4
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations:ro
+    command: [
+      "-path", "/migrations",
+      "-database", "postgres://shortener:shortener@db:5432/postgres?sslmode=disable",
+      "up"
+    ]
+    restart: "no"
 
 volumes:
   pg_data:

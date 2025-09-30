@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -17,6 +18,7 @@ import (
 )
 
 func Start(cfg *config.Config) {
+	fmt.Println("db", cfg.DatabaseDSN)
 	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
 	if err != nil {
 		log.Fatalln("Unable to parse DATABASE_URL:", err)
