@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"sync"
@@ -61,7 +62,7 @@ func NewShortURLRepository(path string) (*ShortURLRepository, error) {
 	return r, nil
 }
 
-func (r *ShortURLRepository) Save(hash, original string) error {
+func (r *ShortURLRepository) Save(_ context.Context, hash, original string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -70,10 +71,13 @@ func (r *ShortURLRepository) Save(hash, original string) error {
 	}
 
 	r.hashMap[hash] = original
-	return r.fileStore.Append(entry{Hash: hash, URL: original})
+	if err := r.fileStore.Append(entry{Hash: hash, URL: original}); err != nil {
+		return err
+	}
+	return r.fileStore.Sync()
 }
 
-func (r *ShortURLRepository) Get(hash string) (string, error) {
+func (r *ShortURLRepository) Get(_ context.Context, hash string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

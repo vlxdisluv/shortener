@@ -62,6 +62,10 @@ func (f *Store) Append(v interface{}) error {
 	return err
 }
 
+func (s *Store) Sync() error {
+	return s.writeFile.Sync()
+}
+
 func (f *Store) Close() error {
 	err1 := f.readFile.Close()
 	err2 := f.writeFile.Close()

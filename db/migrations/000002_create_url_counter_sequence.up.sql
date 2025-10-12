@@ -1,0 +1,1 @@
+CREATE SEQUENCE url_counter START 1;

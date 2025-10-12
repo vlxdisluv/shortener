@@ -1,6 +1,9 @@
 package storage
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 var (
 	ErrNotFound = errors.New("not found")
@@ -8,12 +11,12 @@ var (
 )
 
 type ShortURLRepository interface {
-	Save(hash string, original string) error
-	Get(hash string) (string, error)
+	Save(ctx context.Context, hash string, original string) error
+	Get(ctx context.Context, hash string) (string, error)
 	Close() error
 }
 
 type CounterRepository interface {
-	Next() (uint64, error)
+	Next(ctx context.Context) (uint64, error)
 	Close() error
 }

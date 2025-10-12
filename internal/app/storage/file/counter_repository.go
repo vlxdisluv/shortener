@@ -1,9 +1,9 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"io"
-	"path/filepath"
 	"sync"
 
 	"github.com/vlxdisluv/shortener/internal/app/logger"
@@ -22,7 +22,7 @@ type counterEntry struct {
 }
 
 func NewCounterRepository(path string) (*CounterRepository, error) {
-	fs, err := filestore.LoadFile(filepath.Clean(path))
+	fs, err := filestore.LoadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +49,16 @@ func NewCounterRepository(path string) (*CounterRepository, error) {
 	return r, nil
 }
 
-func (r *CounterRepository) Next() (uint64, error) {
+func (r *CounterRepository) Next(_ context.Context) (uint64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.value++
 	if err := r.fileStore.Append(counterEntry{Value: r.value}); err != nil {
 		r.value--
+		return 0, err
+	}
+	if err := r.fileStore.Sync(); err != nil {
 		return 0, err
 	}
 	return r.value, nil
