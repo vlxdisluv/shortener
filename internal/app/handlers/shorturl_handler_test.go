@@ -17,31 +17,33 @@ import (
 	"github.com/vlxdisluv/shortener/internal/app/storage"
 )
 
-type MockRepository struct {
-	mock.Mock
-}
+type MockShortRepo struct{ mock.Mock }
 
-func (mock *MockRepository) Get(hash string) (string, error) {
-	args := mock.Called(hash)
-	result := args.Get(0)
-	return result.(string), args.Error(1)
-}
-
-func (m *MockRepository) Close() error { return nil }
-
-func (mock *MockRepository) Save(hash, original string) error {
-	args := mock.Called(hash, original)
+func (m *MockShortRepo) Save(ctx context.Context, hash, original string) error {
+	args := m.Called(ctx, hash, original)
 	return args.Error(0)
 }
+func (m *MockShortRepo) Get(ctx context.Context, hash string) (string, error) {
+	args := m.Called(ctx, hash)
+	return args.String(0), args.Error(1)
+}
+func (m *MockShortRepo) Close() error { return nil }
 
-type MockCounter struct{ mock.Mock }
+type MockCounterRepo struct{ mock.Mock }
 
-func (m *MockCounter) Next() (uint64, error) {
-	args := m.Called()
+func (m *MockCounterRepo) Next(ctx context.Context) (uint64, error) {
+	args := m.Called(ctx)
 	return args.Get(0).(uint64), args.Error(1)
 }
+func (m *MockCounterRepo) Close() error { return nil }
 
-func (m *MockCounter) Close() error { return nil }
+type MockStorage struct {
+	short   storage.ShortURLRepository
+	counter storage.CounterRepository
+}
+
+func (m *MockStorage) ShortURLs() storage.ShortURLRepository { return m.short }
+func (m *MockStorage) Counters() storage.CounterRepository   { return m.counter }
 
 func TestGetShortURL(t *testing.T) {
 	type want struct {
@@ -80,11 +82,13 @@ func TestGetShortURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &MockRepository{}
-			handler := &ShortURLHandler{repo: mockRepo, counter: nil}
+			mockShort := &MockShortRepo{}
+			mockCounter := &MockCounterRepo{}
+			ms := &MockStorage{short: mockShort, counter: mockCounter}
+			handler := NewShortURLHandler(ms)
 
-			mockRepo.
-				On("Get", tt.hash).
+			mockShort.
+				On("Get", mock.Anything, tt.hash).
 				Return(tt.mockReturnURL, tt.mockReturnErr).
 				Once()
 
@@ -103,7 +107,7 @@ func TestGetShortURL(t *testing.T) {
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
 
-			mockRepo.AssertExpectations(t)
+			mockShort.AssertExpectations(t)
 		})
 	}
 }
@@ -153,25 +157,20 @@ func TestCreateShortURLFromRawBody(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &MockRepository{}
-			mockCounter := &MockCounter{}
-			handler := &ShortURLHandler{repo: mockRepo, counter: mockCounter}
-
-			//mockRepo.On("NextID").Return(int64(2))
-			//mockRepo.
-			//	On("Save", mock.AnythingOfType("string"), tt.requestBody).
-			//	Return(tt.mockSaveErr).
-			//	Maybe()
+			mockRepo := &MockShortRepo{}
+			mockCounter := &MockCounterRepo{}
+			ms := &MockStorage{short: mockRepo, counter: mockCounter}
+			handler := NewShortURLHandler(ms)
 
 			body := strings.NewReader(tt.requestBody)
 			req := httptest.NewRequest(http.MethodPost, "/", body)
 			req.Host = "example.com"
 
 			if tt.requestBody != "" {
-				mockCounter.On("Next").Return(uint64(2), nil).Once()
+				mockCounter.On("Next", mock.Anything).Return(uint64(2), nil).Once()
 				expectedHash := shortener.Generate(2, 7)
 
-				mockRepo.On("Save", expectedHash, tt.requestBody).
+				mockRepo.On("Save", mock.Anything, expectedHash, tt.requestBody).
 					Return(tt.mockSaveErr).
 					Maybe()
 
@@ -242,9 +241,10 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &MockRepository{}
-			mockCounter := &MockCounter{}
-			handler := &ShortURLHandler{repo: mockRepo, counter: mockCounter}
+			mockShort := &MockShortRepo{}
+			mockCounter := &MockCounterRepo{}
+			ms := &MockStorage{short: mockShort, counter: mockCounter}
+			handler := NewShortURLHandler(ms)
 
 			var b strings.Builder
 			_ = json.NewEncoder(&b).Encode(reqBody{URL: tt.requestURL})
@@ -253,9 +253,9 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 			req.Host = "example.com"
 
 			if tt.requestURL != "" {
-				mockCounter.On("Next").Return(uint64(2), nil).Once()
+				mockCounter.On("Next", mock.Anything).Return(uint64(2), nil).Once()
 				expectedHash := shortener.Generate(2, 7)
-				mockRepo.On("Save", expectedHash, tt.requestURL).Return(tt.mockSaveErr).Maybe()
+				mockShort.On("Save", mock.Anything, expectedHash, tt.requestURL).Return(tt.mockSaveErr).Maybe()
 				if tt.mockSaveErr == nil {
 					tt.want.respBodyHas = "\"result\":\"http://example.com/" + expectedHash + "\""
 				}
@@ -275,7 +275,8 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 				assert.Contains(t, string(data), tt.want.respBodyHas)
 			}
 
-			mockRepo.AssertExpectations(t)
+			mockShort.AssertExpectations(t)
+			mockShort.AssertExpectations(t)
 			mockCounter.AssertExpectations(t)
 		})
 	}

@@ -8,14 +8,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/vlxdisluv/shortener/internal/app/shortener"
-	"github.com/vlxdisluv/shortener/internal/app/storage/factory"
+	"github.com/vlxdisluv/shortener/internal/app/storage"
 )
 
-type ShortURLHandler struct {
-	storage *factory.Storage
+type Storage interface {
+	ShortURLs() storage.ShortURLRepository
+	Counters() storage.CounterRepository
 }
 
-func NewShortURLHandler(storage *factory.Storage) *ShortURLHandler {
+type ShortURLHandler struct {
+	storage Storage
+}
+
+func NewShortURLHandler(storage Storage) *ShortURLHandler {
 	return &ShortURLHandler{storage: storage}
 }
 
