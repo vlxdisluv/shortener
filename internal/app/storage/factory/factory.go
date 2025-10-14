@@ -22,6 +22,10 @@ type Storage struct {
 
 func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 	if cfg.DatabaseDSN != "" {
+		if err := postgres.RunMigrations(ctx, cfg.DatabaseDSN); err != nil {
+			return nil, fmt.Errorf("run migrations: %w", err)
+		}
+		
 		poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
 		if err != nil {
 			return nil, fmt.Errorf("parse pg: %w", err)
