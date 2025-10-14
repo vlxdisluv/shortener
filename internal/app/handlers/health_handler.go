@@ -3,17 +3,20 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"net/http"
 	"time"
 )
 
-type HealthHandler struct {
-	db *pgxpool.Pool
+type HealthChecker interface {
+	Ping(ctx context.Context) error
 }
 
-func NewHealthHandler(db *pgxpool.Pool) *HealthHandler {
-	return &HealthHandler{db: db}
+type HealthHandler struct {
+	hc HealthChecker
+}
+
+func NewHealthHandler(hc HealthChecker) *HealthHandler {
+	return &HealthHandler{hc: hc}
 }
 
 func (h *HealthHandler) DBHealth(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +26,7 @@ func (h *HealthHandler) DBHealth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 500*time.Millisecond)
 	defer cancel()
 
-	if err := h.db.Ping(ctx); err != nil {
+	if err := h.hc.Ping(ctx); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status": "unhealthy",

@@ -2,45 +2,32 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5/pgxpool"
+	storagefactory "github.com/vlxdisluv/shortener/internal/app/storage/factory"
+
 	"github.com/vlxdisluv/shortener/config"
 	"github.com/vlxdisluv/shortener/internal/app/handlers"
 	"github.com/vlxdisluv/shortener/internal/app/logger"
 	customMiddleware "github.com/vlxdisluv/shortener/internal/app/middleware"
-	"github.com/vlxdisluv/shortener/internal/app/storage"
+
 	"go.uber.org/zap"
-	"log"
-	"net/http"
 )
 
-//var db *pgxpool.Pool
-
 func Start(cfg *config.Config) {
-	fmt.Printf("%+v\n", cfg)
-	fmt.Printf("Ddb connection DSN %s \n", cfg.DatabaseDSN)
-	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
+	storage, err := storagefactory.New(context.Background(), cfg)
 	if err != nil {
-		log.Fatalln("Unable to parse DATABASE_URL:", err)
+		logger.Log.Error("server failed to init storage", zap.Error(err))
+		return
 	}
+	defer storage.Close(context.Background())
 
-	db, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		log.Fatalln("Unable to create connection pool:", err)
-	}
-
-	repo, err := storage.NewInMemoryURLStore(cfg.FileStoragePath)
-	if err != nil {
-		logger.Log.Fatal("server failed to init storage", zap.Error(err))
-	}
-
-	h := handlers.NewShortURLHandler(repo)
-	hh := handlers.NewHealthHandler(db)
+	h := handlers.NewShortURLHandler(storage)
+	hh := handlers.NewHealthHandler(storage.HealthCheck())
 
 	r := chi.NewRouter()
-
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(customMiddleware.RequestLogger)
@@ -59,6 +46,5 @@ func Start(cfg *config.Config) {
 
 	if err := http.ListenAndServe(cfg.Addr, r); err != nil {
 		logger.Log.Fatal("server failed to start", zap.Error(err))
-		//log.Fatalf("server failed to start: %v", err)
 	}
 }

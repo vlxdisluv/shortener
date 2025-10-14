@@ -3,19 +3,25 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/vlxdisluv/shortener/internal/app/shortener"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
-	"io"
-	"net/http"
 )
 
-type ShortURLHandler struct {
-	repo storage.URLRepository
+type Storage interface {
+	ShortURLs() storage.ShortURLRepository
+	Counters() storage.CounterRepository
 }
 
-func NewShortURLHandler(repo storage.URLRepository) *ShortURLHandler {
-	return &ShortURLHandler{repo: repo}
+type ShortURLHandler struct {
+	storage Storage
+}
+
+func NewShortURLHandler(storage Storage) *ShortURLHandler {
+	return &ShortURLHandler{storage: storage}
 }
 
 type CreateShortURLReq struct {
@@ -39,10 +45,15 @@ func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *ht
 		return
 	}
 
-	id := h.repo.NextID()
+	id, err := h.storage.Counters().Next(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	hash := shortener.Generate(id, 7)
 
-	if err := h.repo.Save(hash, string(body)); err != nil {
+	if err := h.storage.ShortURLs().Save(r.Context(), hash, string(body)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -52,7 +63,7 @@ func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *ht
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortURL))
+	_, _ = w.Write([]byte(shortURL))
 }
 
 func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.Request) {
@@ -69,10 +80,15 @@ func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.
 		return
 	}
 
-	id := h.repo.NextID()
+	id, err := h.storage.Counters().Next(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	hash := shortener.Generate(id, 7)
 
-	if err := h.repo.Save(hash, shortURLReq.URL); err != nil {
+	if err := h.storage.ShortURLs().Save(r.Context(), hash, shortURLReq.URL); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -82,13 +98,13 @@ func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(CreateShortURLResp{ShortURL: shortURL})
+	_ = json.NewEncoder(w).Encode(CreateShortURLResp{ShortURL: shortURL})
 }
 
 func (h *ShortURLHandler) GetShortURL(w http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 
-	original, err := h.repo.Get(hash)
+	original, err := h.storage.ShortURLs().Get(r.Context(), hash)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("short url does not exist for %s", hash), http.StatusNotFound)
 		return
