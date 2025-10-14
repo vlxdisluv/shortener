@@ -20,3 +20,7 @@ type CounterRepository interface {
 	Next(ctx context.Context) (uint64, error)
 	Close() error
 }
+
+type HealthCheckRepository interface {
+	Ping(ctx context.Context) error
+}

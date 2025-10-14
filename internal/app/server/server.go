@@ -17,30 +17,6 @@ import (
 )
 
 func Start(cfg *config.Config) {
-	//fmt.Println("db", cfg.DatabaseDSN)
-	//poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
-	//if err != nil {
-	//	log.Fatalln("Unable to parse DATABASE_URL:", err)
-	//}
-	//
-	//db, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-	//if err != nil {
-	//	log.Fatalln("Unable to create connection pool:", err)
-	//}
-
-	//repo, err := file.NewShortURLRepository(cfg.FileStoragePath)
-	//if err != nil {
-	//	logger.Log.Fatal("server failed to init storage", zap.Error(err))
-	//}
-	//defer repo.Close()
-	//
-	//counterPath := cfg.FileStoragePath + ".seq"
-	//counter, err := file.NewCounterRepository(counterPath)
-	//if err != nil {
-	//	logger.Log.Fatal("server failed to init counter", zap.Error(err))
-	//}
-	//defer counter.Close()
-
 	storage, err := storagefactory.New(context.Background(), cfg)
 	if err != nil {
 		logger.Log.Error("server failed to init storage", zap.Error(err))
@@ -49,7 +25,7 @@ func Start(cfg *config.Config) {
 	defer storage.Close(context.Background())
 
 	h := handlers.NewShortURLHandler(storage)
-	//hh := handlers.NewHealthHandler(storage)
+	hh := handlers.NewHealthHandler(storage.HealthCheck())
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.RequestID)
@@ -60,7 +36,7 @@ func Start(cfg *config.Config) {
 	r.Post("/", h.CreateShortURLFromRawBody)
 	r.Get("/{hash}", h.GetShortURL)
 	r.Post("/api/shorten", h.CreateShortURLFromJSON)
-	//r.Get("/ping", hh.DBHealth)
+	r.Get("/ping", hh.DBHealth)
 
 	logger.Log.Info("Server started successfully",
 		zap.String("address", cfg.Addr),
