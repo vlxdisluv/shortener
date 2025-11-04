@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/vlxdisluv/shortener/internal/app/logger"
+	"github.com/vlxdisluv/shortener/internal/app/storage"
 	"github.com/vlxdisluv/shortener/internal/app/storage/file/internal/filestore"
 	"go.uber.org/zap"
 )
@@ -66,4 +67,9 @@ func (r *CounterRepository) Next(_ context.Context) (uint64, error) {
 
 func (r *CounterRepository) Close() error {
 	return r.fileStore.Close()
+}
+
+// no-op
+func (r *CounterRepository) WithTx(_ storage.Tx) storage.CounterRepository {
+	return r
 }

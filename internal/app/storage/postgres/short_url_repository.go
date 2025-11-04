@@ -10,16 +10,33 @@ import (
 )
 
 type ShortURLRepository struct {
-	db *pgxpool.Pool
+	ex   storage.Execer
+	pool *pgxpool.Pool
 }
 
-func NewShortURLRepository(db *pgxpool.Pool) (*ShortURLRepository, error) {
-	return &ShortURLRepository{db: db}, nil
+func NewShortURLRepository(pool *pgxpool.Pool) (*ShortURLRepository, error) {
+	return &ShortURLRepository{ex: pool, pool: pool}, nil
+}
+
+func (r *ShortURLRepository) WithTx(tx storage.Tx) storage.ShortURLRepository {
+	if tx == nil {
+		return r
+	}
+
+	if tw, ok := tx.(txWrapper); ok {
+		return &ShortURLRepository{ex: tw.tx, pool: r.pool}
+	}
+
+	if ex, ok := tx.(storage.Execer); ok {
+		return &ShortURLRepository{ex: ex, pool: r.pool}
+	}
+
+	return r
 }
 
 func (r *ShortURLRepository) Save(ctx context.Context, hash string, original string) error {
 	const q = `INSERT INTO short_urls(hash, original) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING`
-	tag, err := r.db.Exec(ctx, q, hash, original)
+	tag, err := r.ex.Exec(ctx, q, hash, original)
 	if err != nil {
 		return err
 	}
@@ -32,7 +49,7 @@ func (r *ShortURLRepository) Save(ctx context.Context, hash string, original str
 func (r *ShortURLRepository) Get(ctx context.Context, hash string) (string, error) {
 	const q = `SELECT original FROM short_urls WHERE hash = $1`
 	var original string
-	if err := r.db.QueryRow(ctx, q, hash).Scan(&original); err != nil {
+	if err := r.ex.QueryRow(ctx, q, hash).Scan(&original); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", storage.ErrNotFound
 		}

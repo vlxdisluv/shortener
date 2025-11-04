@@ -27,7 +27,9 @@ func (m *MockShortRepo) Get(ctx context.Context, hash string) (string, error) {
 	args := m.Called(ctx, hash)
 	return args.String(0), args.Error(1)
 }
-func (m *MockShortRepo) Close() error { return nil }
+
+func (m *MockShortRepo) Close() error                                   { return nil }
+func (m *MockShortRepo) WithTx(_ storage.Tx) storage.ShortURLRepository { return m }
 
 type MockCounterRepo struct{ mock.Mock }
 
@@ -35,15 +37,19 @@ func (m *MockCounterRepo) Next(ctx context.Context) (uint64, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(uint64), args.Error(1)
 }
-func (m *MockCounterRepo) Close() error { return nil }
+
+func (m *MockCounterRepo) Close() error                                  { return nil }
+func (m *MockCounterRepo) WithTx(_ storage.Tx) storage.CounterRepository { return m }
 
 type MockStorage struct {
 	short   storage.ShortURLRepository
 	counter storage.CounterRepository
+	uow     storage.UnitOfWork
 }
 
 func (m *MockStorage) ShortURLs() storage.ShortURLRepository { return m.short }
 func (m *MockStorage) Counters() storage.CounterRepository   { return m.counter }
+func (m *MockStorage) UnitOfWork() storage.UnitOfWork        { return m.uow }
 
 func TestGetShortURL(t *testing.T) {
 	type want struct {

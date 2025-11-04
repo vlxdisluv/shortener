@@ -14,6 +14,7 @@ import (
 type Storage interface {
 	ShortURLs() storage.ShortURLRepository
 	Counters() storage.CounterRepository
+	UnitOfWork() storage.UnitOfWork
 }
 
 type ShortURLHandler struct {
@@ -30,6 +31,16 @@ type CreateShortURLReq struct {
 
 type CreateShortURLResp struct {
 	ShortURL string `json:"result"`
+}
+
+type CreateShortURLBatchReq struct {
+	OrigURL       string `json:"original_url"`
+	CorrelationID string `json:"correlation_id"`
+}
+
+type CreateShortURLBatchResp struct {
+	ShortURL      string `json:"short_url"`
+	CorrelationID string `json:"correlation_id"`
 }
 
 func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *http.Request) {
@@ -111,4 +122,66 @@ func (h *ShortURLHandler) GetShortURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, original, http.StatusTemporaryRedirect)
+}
+
+func (h *ShortURLHandler) CreateShortURLsBatch(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	var req []CreateShortURLBatchReq
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req) == 0 {
+		http.Error(w, "empty batch", http.StatusBadRequest)
+		return
+	}
+	for i, item := range req {
+		if item.OrigURL == "" {
+			http.Error(w, fmt.Sprintf("item %d: original_url is required", i), http.StatusBadRequest)
+			return
+		}
+	}
+
+	tx, err := h.storage.UnitOfWork().Begin(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	shortURLRepo := h.storage.ShortURLs().WithTx(tx)
+	counterRepo := h.storage.Counters().WithTx(tx)
+
+	var results []CreateShortURLBatchResp
+	for _, item := range req {
+		id, err := counterRepo.Next(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		hash := shortener.Generate(id, 7)
+
+		if err := shortURLRepo.Save(r.Context(), hash, item.OrigURL); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		host := r.Host
+		shortURL := fmt.Sprintf("http://%s/%s", host, hash)
+
+		results = append(results, CreateShortURLBatchResp{CorrelationID: item.CorrelationID, ShortURL: shortURL})
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(results)
 }

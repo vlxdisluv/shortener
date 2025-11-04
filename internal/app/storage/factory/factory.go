@@ -17,7 +17,10 @@ type Storage struct {
 	short   storage.ShortURLRepository
 	counter storage.CounterRepository
 	hc      storage.HealthCheckRepository
-	closer  func(context.Context)
+
+	unitOfWork storage.UnitOfWork
+
+	closer func(context.Context)
 }
 
 func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
@@ -25,40 +28,43 @@ func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 		if err := postgres.RunMigrations(ctx, cfg.DatabaseDSN); err != nil {
 			return nil, fmt.Errorf("run migrations: %w", err)
 		}
-		
+
 		poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseDSN)
 		if err != nil {
 			return nil, fmt.Errorf("parse pg: %w", err)
 		}
 
-		db, err := pgxpool.NewWithConfig(ctx, poolConfig)
+		pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("create pg: %w", err)
 		}
 
-		short, err := postgres.NewShortURLRepository(db)
+		short, err := postgres.NewShortURLRepository(pool)
 		if err != nil {
 			logger.Log.Error("server failed to init pg short url repository", zap.Error(err))
 			return nil, fmt.Errorf("create pg short url repo: %w", err)
 		}
 
-		counter, err := postgres.NewCounterRepository(db)
+		counter, err := postgres.NewCounterRepository(pool)
 		if err != nil {
 			logger.Log.Error("server failed to init pg counter repository", zap.Error(err))
 			return nil, fmt.Errorf("create pg counter repo: %w", err)
 		}
 
-		hc, err := postgres.NewHealthCheckerRepository(db)
+		hc, err := postgres.NewHealthCheckerRepository(pool)
 		if err != nil {
 			logger.Log.Error("server failed to init pg health checker repository", zap.Error(err))
 			return nil, fmt.Errorf("create pg health checker repo: %w", err)
 		}
 
+		uow := postgres.NewUnitOfWork(pool)
+
 		return &Storage{
-			short:   short,
-			counter: counter,
-			hc:      hc,
-			closer:  func(context.Context) { db.Close() },
+			short:      short,
+			counter:    counter,
+			hc:         hc,
+			unitOfWork: uow,
+			closer:     func(context.Context) { pool.Close() },
 		}, nil
 	}
 
@@ -81,10 +87,13 @@ func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 		return nil, fmt.Errorf("create file health checker repo: %w", err)
 	}
 
+	noopUow := file.NewNoopUnitOfWork()
+
 	return &Storage{
-		short:   short,
-		counter: counter,
-		hc:      hc,
+		short:      short,
+		counter:    counter,
+		unitOfWork: noopUow,
+		hc:         hc,
 		closer: func(context.Context) {
 			if err := short.Close(); err != nil {
 				logger.Log.Warn("file short repo close failed", zap.Error(err))
@@ -101,6 +110,8 @@ func (s *Storage) ShortURLs() storage.ShortURLRepository { return s.short }
 func (s *Storage) Counters() storage.CounterRepository { return s.counter }
 
 func (s *Storage) HealthCheck() storage.HealthCheckRepository { return s.hc }
+
+func (s *Storage) UnitOfWork() storage.UnitOfWork { return s.unitOfWork }
 
 func (s *Storage) Close(ctx context.Context) {
 	if s.closer != nil {

@@ -91,3 +91,8 @@ func (r *ShortURLRepository) Get(_ context.Context, hash string) (string, error)
 func (r *ShortURLRepository) Close() error {
 	return r.fileStore.Close()
 }
+
+// no-op
+func (r *ShortURLRepository) WithTx(_ storage.Tx) storage.ShortURLRepository {
+	return r
+}
