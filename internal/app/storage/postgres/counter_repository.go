@@ -4,14 +4,32 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/vlxdisluv/shortener/internal/app/storage"
 )
 
 type CounterRepository struct {
-	db *pgxpool.Pool
+	ex   storage.Execer
+	pool *pgxpool.Pool
 }
 
-func NewCounterRepository(db *pgxpool.Pool) (*CounterRepository, error) {
-	return &CounterRepository{db: db}, nil
+func NewCounterRepository(pool *pgxpool.Pool) (*CounterRepository, error) {
+	return &CounterRepository{pool: pool, ex: pool}, nil
+}
+
+func (r *CounterRepository) WithTx(tx storage.Tx) storage.CounterRepository {
+	if tx == nil {
+		return r
+	}
+
+	if tw, ok := tx.(txWrapper); ok {
+		return &CounterRepository{ex: tw.tx, pool: r.pool}
+	}
+
+	if ex, ok := tx.(storage.Execer); ok {
+		return &CounterRepository{ex: ex, pool: r.pool}
+	}
+
+	return r
 }
 
 func (r *CounterRepository) Next(ctx context.Context) (uint64, error) {
@@ -19,7 +37,7 @@ func (r *CounterRepository) Next(ctx context.Context) (uint64, error) {
 
 	var id uint64
 
-	err := r.db.QueryRow(ctx, q).Scan(&id)
+	err := r.ex.QueryRow(ctx, q).Scan(&id)
 	if err != nil {
 		return 0, err
 	}

@@ -36,6 +36,7 @@ func Start(cfg *config.Config) {
 	r.Post("/", h.CreateShortURLFromRawBody)
 	r.Get("/{hash}", h.GetShortURL)
 	r.Post("/api/shorten", h.CreateShortURLFromJSON)
+	r.Post("/api/shorten/batch", h.CreateShortURLsBatch)
 	r.Get("/ping", hh.DBHealth)
 
 	logger.Log.Info("Server started successfully",
