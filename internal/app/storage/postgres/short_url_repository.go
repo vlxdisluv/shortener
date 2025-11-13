@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vlxdisluv/shortener/internal/app/storage"
 )
@@ -38,6 +40,10 @@ func (r *ShortURLRepository) Save(ctx context.Context, hash string, original str
 	const q = `INSERT INTO short_urls(hash, original) VALUES ($1, $2) ON CONFLICT (hash) DO NOTHING`
 	tag, err := r.ex.Exec(ctx, q, hash, original)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) {
+			err = storage.ErrConflict
+		}
 		return err
 	}
 	if tag.RowsAffected() == 0 {
@@ -56,6 +62,18 @@ func (r *ShortURLRepository) Get(ctx context.Context, hash string) (string, erro
 		return "", err
 	}
 	return original, nil
+}
+
+func (r *ShortURLRepository) GetByOriginal(ctx context.Context, original string) (string, error) {
+	const q = `SELECT hash FROM short_urls WHERE original = $1`
+	var hash string
+	if err := r.ex.QueryRow(ctx, q, original).Scan(&hash); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", storage.ErrNotFound
+		}
+		return "", err
+	}
+	return hash, nil
 }
 
 // Close implements the Repository interface.

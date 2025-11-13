@@ -88,6 +88,20 @@ func (r *ShortURLRepository) Get(_ context.Context, hash string) (string, error)
 	return url, nil
 }
 
+func (r *ShortURLRepository) GetByOriginal(_ context.Context, original string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// TODO can be improved from O(n) to O(1)
+	for hash, url := range r.hashMap {
+		if url == original {
+			return hash, nil
+		}
+	}
+	
+	return "", storage.ErrNotFound
+}
+
 func (r *ShortURLRepository) Close() error {
 	return r.fileStore.Close()
 }

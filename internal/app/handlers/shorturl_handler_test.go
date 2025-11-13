@@ -27,6 +27,10 @@ func (m *MockShortRepo) Get(ctx context.Context, hash string) (string, error) {
 	args := m.Called(ctx, hash)
 	return args.String(0), args.Error(1)
 }
+func (m *MockShortRepo) GetByOriginal(ctx context.Context, url string) (string, error) {
+	args := m.Called(ctx, url)
+	return args.String(0), args.Error(1)
+}
 
 func (m *MockShortRepo) Close() error                                   { return nil }
 func (m *MockShortRepo) WithTx(_ storage.Tx) storage.ShortURLRepository { return m }
@@ -155,9 +159,9 @@ func TestCreateShortURLFromRawBody(t *testing.T) {
 			requestBody: "http://google.com",
 			mockSaveErr: storage.ErrConflict,
 			want: want{
-				statusCode:  http.StatusInternalServerError,
-				contentType: "text/plain; charset=utf-8",
-				respBody:    "",
+				statusCode:  http.StatusConflict,
+				contentType: "text/plain",
+				// respBody set dynamically
 			},
 		},
 	}
@@ -175,13 +179,19 @@ func TestCreateShortURLFromRawBody(t *testing.T) {
 			if tt.requestBody != "" {
 				mockCounter.On("Next", mock.Anything).Return(uint64(2), nil).Once()
 				expectedHash := shortener.Generate(2, 7)
-
+				
 				mockRepo.On("Save", mock.Anything, expectedHash, tt.requestBody).
 					Return(tt.mockSaveErr).
 					Maybe()
-
+				
 				if tt.mockSaveErr == nil {
 					tt.want.respBody = "http://example.com/" + expectedHash
+				} else if tt.mockSaveErr == storage.ErrConflict {
+					existingHash := "EwHXdJfB"
+					mockRepo.On("GetByOriginal", mock.Anything, tt.requestBody).
+						Return(existingHash, nil).
+						Once()
+					tt.want.respBody = "http://example.com/" + existingHash
 				}
 			}
 
@@ -196,11 +206,11 @@ func TestCreateShortURLFromRawBody(t *testing.T) {
 
 			resp, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
-
-			if result.StatusCode == http.StatusCreated {
+			
+			if result.StatusCode == http.StatusCreated || result.StatusCode == http.StatusConflict {
 				assert.Equal(t, tt.want.respBody, string(resp))
 			}
-
+			
 			mockRepo.AssertExpectations(t)
 			mockCounter.AssertExpectations(t)
 		})
@@ -235,7 +245,16 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 			},
 		},
 		{
-			name:        "empty url field #2",
+			name:        "hash already exists err #2",
+			requestURL:  "http://yandex.ru",
+			mockSaveErr: storage.ErrConflict,
+			want: want{
+				statusCode:  http.StatusConflict,
+				contentType: "application/json",
+			},
+		},
+		{
+			name:        "empty url field #3",
 			requestURL:  "",
 			mockSaveErr: nil,
 			want: want{
@@ -257,30 +276,36 @@ func TestCreateShortURLFromJSON(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(b.String()))
 			req.Host = "example.com"
-
+			
 			if tt.requestURL != "" {
 				mockCounter.On("Next", mock.Anything).Return(uint64(2), nil).Once()
 				expectedHash := shortener.Generate(2, 7)
 				mockShort.On("Save", mock.Anything, expectedHash, tt.requestURL).Return(tt.mockSaveErr).Maybe()
 				if tt.mockSaveErr == nil {
 					tt.want.respBodyHas = "\"result\":\"http://example.com/" + expectedHash + "\""
+				} else if tt.mockSaveErr == storage.ErrConflict {
+					existingHash := "EwHXdJfB"
+					mockShort.On("GetByOriginal", mock.Anything, tt.requestURL).
+						Return(existingHash, nil).
+						Once()
+					tt.want.respBodyHas = "\"result\":\"http://example.com/" + existingHash + "\""
 				}
 			}
-
+			
 			w := httptest.NewRecorder()
 			handler.CreateShortURLFromJSON(w, req)
-
+			
 			result := w.Result()
 			defer result.Body.Close()
-
+			
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
-
+			
 			data, _ := io.ReadAll(result.Body)
-			if result.StatusCode == http.StatusCreated {
+			if result.StatusCode == http.StatusCreated || result.StatusCode == http.StatusConflict {
 				assert.Contains(t, string(data), tt.want.respBodyHas)
 			}
-
+			
 			mockShort.AssertExpectations(t)
 			mockShort.AssertExpectations(t)
 			mockCounter.AssertExpectations(t)
