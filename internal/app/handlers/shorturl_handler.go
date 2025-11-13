@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -65,6 +66,21 @@ func (h *ShortURLHandler) CreateShortURLFromRawBody(w http.ResponseWriter, r *ht
 	hash := shortener.Generate(id, 7)
 
 	if err := h.storage.ShortURLs().Save(r.Context(), hash, string(body)); err != nil {
+		if errors.Is(err, storage.ErrConflict) {
+			if existingHash, err := h.storage.ShortURLs().GetByOriginal(r.Context(), string(body)); err == nil {
+				host := r.Host
+				shortURL := fmt.Sprintf("http://%s/%s", host, existingHash)
+
+				w.Header().Set("Content-Type", "text/plain")
+				w.WriteHeader(http.StatusConflict)
+				_, _ = w.Write([]byte(shortURL))
+				return
+			}
+
+			http.Error(w, "url already exists", http.StatusConflict)
+			return
+		}
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -100,6 +116,20 @@ func (h *ShortURLHandler) CreateShortURLFromJSON(w http.ResponseWriter, r *http.
 	hash := shortener.Generate(id, 7)
 
 	if err := h.storage.ShortURLs().Save(r.Context(), hash, shortURLReq.URL); err != nil {
+		if errors.Is(err, storage.ErrConflict) {
+			if existingHash, err := h.storage.ShortURLs().GetByOriginal(r.Context(), shortURLReq.URL); err == nil {
+				host := r.Host
+				shortURL := fmt.Sprintf("http://%s/%s", host, existingHash)
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(CreateShortURLResp{ShortURL: shortURL})
+				return
+			}
+
+			http.Error(w, "url already exists", http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX uniq_idx_origin_url ON short_urls(original);

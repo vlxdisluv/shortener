@@ -25,6 +25,7 @@ type Execer interface {
 
 type ShortURLRepository interface {
 	Save(ctx context.Context, hash string, original string) error
+	GetByOriginal(ctx context.Context, original string) (string, error)
 	Get(ctx context.Context, hash string) (string, error)
 	Close() error
 	WithTx(tx Tx) ShortURLRepository
